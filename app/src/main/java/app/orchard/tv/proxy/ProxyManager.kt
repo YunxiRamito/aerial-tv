@@ -89,7 +89,14 @@ object ProxyManager {
     private var launchSerial = 0L
     private val source get() = profiles.active()?.let { profiles.file(it.id) } ?: File(directory, "unconfigured.yaml")
     private val runtime get() = File(directory, "runtime.yaml")
-    private val binary get() = File(context.applicationInfo.nativeLibraryDir, "libmihomo.so")
+    private val bundledBinary get() = File(context.applicationInfo.nativeLibraryDir, "libmihomo.so")
+    /**
+     * The core to run: the one bundled in the APK if this build has it, else the downloaded one
+     * (CoreInstaller: verified against pinned SHA-256 values before it was made executable), else a
+     * path that does not exist, which every caller treats as "core unavailable".
+     */
+    private val binary get() = bundledBinary.takeIf { it.isFile } ?: core.file
+    private lateinit var core: CoreInstaller
 
     /*
      * Rule lists for "rule" mode (RuleLists/RuleStore): downloads run on their own worker, never
@@ -110,6 +117,9 @@ object ProxyManager {
             this.context = context.applicationContext
             prefs = context.getSharedPreferences("proxy", Context.MODE_PRIVATE)
             directory = File(context.filesDir, "proxy").apply { mkdirs() }
+            core = CoreInstaller(File(directory, "core"), CoreSources.URLS, HttpCoreFetch(),
+                selfTest = { f -> CoreSelfTest.run(f, CoreSpec.PINNED.version) },
+                log = { app.orchard.tv.system.DiagLog.i("proxy: $it") })
             SystemProxy.recover(context)
             // A damaged profiles.json must not take Home down with it on every start: stay
             // uninitialized (the proxy API answers proxy_not_initialized) and keep every file as is.
@@ -159,7 +169,10 @@ object ProxyManager {
 
     fun status(): JSONObject = synchronized(lock) {
         check(initialized) { "proxy_not_initialized" }
-        JSONObject().put("available", binary.exists())
+        JSONObject().put("available", binary.isFile)
+            .put("coreInstalled", binary.isFile).put("coreSource", coreSource())
+            .put("coreDownloadSupported", coreDownloadSupported())
+            .put("coreDownload", coreDownloadJson())
             .put("running", running).put("starting", starting).put("stopping", stopping)
             .put("mode", prefs.getString("mode", "rule"))
             .put("systemProxy", prefs.getBoolean("systemProxy", true))
@@ -195,6 +208,33 @@ object ProxyManager {
                     }
                 })
             }
+    }
+
+    private fun coreSource() = if (bundledBinary.isFile) "bundled" else if (core.installed()) "downloaded" else "none"
+
+    /** Only the armeabi-v7a asset is pinned, so only a TV that can run 32-bit ARM code is offered it. */
+    private fun coreDownloadSupported() = CoreSelfTest.abiSupported(Build.SUPPORTED_32_BIT_ABIS)
+
+    private fun coreDownloadJson(): JSONObject = core.progress().let {
+        JSONObject().put("state", it.state).put("received", it.received).put("total", it.total)
+            .put("speed", it.speed).put("error", it.error ?: JSONObject.NULL)
+    }
+
+    /**
+     * Starts the user's "download the core" request. Runs on the installer's own thread, so neither
+     * the caller nor [lock] waits for the network; progress is part of [status].
+     */
+    fun downloadCore(): JSONObject {
+        check(initialized) { "proxy_not_initialized" }
+        require(coreDownloadSupported()) { CoreError.UNSUPPORTED }
+        if (!bundledBinary.isFile && !core.installed()) core.start()
+        return synchronized(lock) { status() }
+    }
+
+    fun cancelCoreDownload(): JSONObject {
+        check(initialized) { "proxy_not_initialized" }
+        core.cancel()
+        return synchronized(lock) { status() }
     }
 
     fun start(): JSONObject {

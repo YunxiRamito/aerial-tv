@@ -25,6 +25,13 @@ unmodified. Aerial's own code stays under its own license (the project's LICENSE
 Aerial communicate only through a loopback HTTP controller and a file descriptor.
 No affiliation with or endorsement by MetaCubeX is claimed.
 
+Download button: a build without the bundled core offers "Download the core" on the VPN page (TV)
+and the Proxy tab (phone page), on TVs that can run 32-bit ARM code. Nothing is downloaded until
+the user presses it. The file comes from the URL list in proxy/CoreSources.kt over https, and is
+used only if its compressed size and SHA-256 and its extracted size and SHA-256 equal the values
+above (checked before decompressing, and again before it is made executable); otherwise it is
+deleted. The core stays unmodified and GPLv3, as above.
+
 YAML parsing: SnakeYAML Engine 2.9, Apache License 2.0.
 Project/source: https://github.com/snakeyaml/snakeyaml-engine
 Exact source: https://repo1.maven.org/maven2/org/snakeyaml/snakeyaml-engine/2.9/snakeyaml-engine-2.9-sources.jar

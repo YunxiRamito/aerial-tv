@@ -220,6 +220,9 @@ class PhoneServer private constructor(private val context: Context, private val 
                     "/api/proxy/subscription" -> ProxyManager.importSubscription(form(session)["url"].orEmpty())
                     "/api/proxy/refresh" -> ProxyManager.refreshSubscription()
                     "/api/proxy/clear" -> ProxyManager.clearSubscription()
+                    // The optional core, fetched on the user's request (CoreInstaller); progress is in status.
+                    "/api/proxy/core/download" -> ProxyManager.downloadCore()
+                    "/api/proxy/core/cancel" -> ProxyManager.cancelCoreDownload()
                     "/api/proxy/start" -> ProxyManager.start()
                     "/api/proxy/stop" -> ProxyManager.stop()
                     "/api/proxy/select" -> {
