@@ -5,16 +5,10 @@ import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,11 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,7 +56,6 @@ import app.orchard.tv.ui.components.Pressable
 import app.orchard.tv.ui.home.MenuRow
 import app.orchard.tv.ui.theme.Glyph
 import app.orchard.tv.ui.theme.GlyphIcon
-import app.orchard.tv.ui.theme.LocalReducedMotion
 import app.orchard.tv.ui.theme.Motion
 import app.orchard.tv.ui.theme.Palette
 import app.orchard.tv.ui.theme.Type
@@ -179,26 +168,6 @@ internal fun leaveVpnPage(vm: HomeViewModel, vpn: VpnState) {
     vm.overlay = Overlay.ControlCenter(CcPage.Main)
 }
 
-/**
- * A quarter arc turning around the VPN button while the proxy starts or stops. Composed only then,
- * so nothing animates while idle; with reduced motion it stands still.
- */
-@Composable
-internal fun BusyRing(color: Color, modifier: Modifier = Modifier) {
-    val reduced = LocalReducedMotion.current
-    val angle = if (reduced) null else rememberInfiniteTransition(label = "vpn-busy").animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart),
-        label = "vpn-busy-angle",
-    )
-    Canvas(modifier) {
-        val stroke = 2.5.dp.toPx()
-        val inset = stroke / 2 + 2.dp.toPx()
-        val box = Size(size.width - 2 * inset, size.height - 2 * inset)
-        drawArc(color.copy(alpha = 0.25f), 0f, 360f, false, Offset(inset, inset), box, style = Stroke(stroke))
-        drawArc(color, (angle?.value ?: 0f) - 90f, 90f, false, Offset(inset, inset), box, style = Stroke(stroke, cap = StrokeCap.Round))
-    }
-}
 /**
  * The VPN page (long press on the VPN button): state, outbound mode and node choice. Subscriptions
  * are added and changed on the phone page only. A group's node list opens inside this page.
