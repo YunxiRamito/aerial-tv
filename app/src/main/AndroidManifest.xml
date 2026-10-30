@@ -86,8 +86,15 @@
         <!-- The HOME intent filter is added by the "standard" flavor (src/standard).
              Not in recent apps: where the firmware keeps Home for itself, Aerial's task is a standard
              one and showed as a card first in the list that switched to nothing (MiTV-MFTR0, #324). -->
+        <!-- EXPERIMENT: the empty activity label keeps Aerial out of Xiaomi's task center (MiTV-AZFP0,
+             Android 9): its RecentTasksLoader lists excluded tasks too (getRecentTasks(21, 2)), but
+             drops a task whose resolved ActivityInfo.loadLabel is empty. Side effect seen on the same
+             TV: Xiaomi's app list reads this activity label, not the filter labels below, so Aerial's
+             name is empty there. The filter labels below are meant for launchers that read
+             ResolveInfo.loadLabel (not verified on any TV). -->
         <activity
             android:name=".MainActivity"
+            android:label="@string/home_task_label"
             android:exported="true"
             android:directBootAware="true"
             android:launchMode="singleTask"
@@ -98,14 +105,14 @@
             android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustNothing"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density">
-            <intent-filter>
+            <intent-filter android:label="@string/app_name">
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
             <!-- Most Chinese TV launchers (Xiaomi PatchWall, Raybird, Huanshi) list only apps with
                  this category: installed from a USB stick, Aerial had no icon to open it by
                  (issues #207, #213). -->
-            <intent-filter>
+            <intent-filter android:label="@string/app_name">
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>

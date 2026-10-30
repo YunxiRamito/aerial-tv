@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Aerial</string>
+    <!-- MainActivity's own label, empty on purpose: see AndroidManifest.xml (Xiaomi task center). -->
+    <string name="home_task_label" translatable="false"></string>
     <string name="guard_name">Aerial Home Guard</string>
     <string name="guard_description">Keeps Aerial as your home screen on TVs that do not let you change it. Reads no screen content.</string>
 
