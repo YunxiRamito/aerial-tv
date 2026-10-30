@@ -330,6 +330,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        idleHandler.removeCallbacks(guardCheck)
+        guardCheckPending = false
         if (locked) runCatching { unregisterReceiver(unlocked) }
         runCatching { unregisterReceiver(screenOnReceiver) }
         super.onDestroy()
@@ -495,6 +497,28 @@ class MainActivity : ComponentActivity() {
 
     private val idleHandler = Handler(Looper.getMainLooper())
     private val showScreensaver = Runnable { startScreensaver(asked = false) }
+
+    /** Whether [guardCheck] is posted; at most one at a time (scheduleGuardCheck). */
+    private var guardCheckPending = false
+
+    // rebindIfStalled reads isRunning again and writes nothing while the guard is bound.
+    private val guardCheck = Runnable {
+        guardCheckPending = false
+        GuardSetup.rebindIfStalled(applicationContext)
+    }
+
+    /**
+     * Looks a few seconds after Aerial comes to the front (start, resume, Home's intent) whether
+     * the guard is enabled but not bound. Coming back by Home or from an app is no onStart, and a
+     * guard lost while Aerial stayed started was not looked at again (MiTV-AZFP0, Android 9). A
+     * check already posted is left as it is, so presses in a row neither add checks nor push it
+     * back; GuardSetup spaces the rebinds themselves.
+     */
+    private fun scheduleGuardCheck() {
+        if (guardCheckPending) return
+        guardCheckPending = true
+        idleHandler.postDelayed(guardCheck, GUARD_CHECK_DELAY_MS)
+    }
 
     /** The Dolby Vision screensaver's start, fetched to disk while Home is still up (AerialStart.prepareAhead). */
     private val prepareScreensaver = Runnable {
@@ -714,6 +738,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         if (locked) return
         DiagLog.i("onNewIntent ${intent.action}")
+        scheduleGuardCheck()
         if (intent.getBooleanExtra(EXTRA_WOKE, false)) openBootSource("brought back on wake")
         if (intent.action == ACTION_PREVIEW_SCREENSAVER) {
             idleHandler.post { startScreensaver(asked = true) }
@@ -740,7 +765,7 @@ class MainActivity : ComponentActivity() {
         // in credential-protected storage).
         lifecycleScope.launch(Dispatchers.IO) { PhoneServer.listen(this@MainActivity) }
         GuardSetup.ensureEnabled(this)
-        idleHandler.postDelayed({ GuardSetup.rebindIfStalled(this) }, 5_000)
+        scheduleGuardCheck()
         vm.reloadIfPackagesChanged()
         ContextCompat.registerReceiver(
             this, packageReceiver,
@@ -795,6 +820,7 @@ class MainActivity : ComponentActivity() {
         if (SystemClock.uptimeMillis() - dreamAskedAt < 1_000) idleHandler.postDelayed(dreamCheck, 1_500)
         restartIdleTimer()
         GuardSetup.setHomeInFront(this, true)
+        scheduleGuardCheck()
         HomeGuardService.onAerialResumed()
         Updates.onHomeResumed()
         vm.refreshSystem()
@@ -891,6 +917,9 @@ class MainActivity : ComponentActivity() {
     companion object {
         /** How long the film waits for Aerial to come back from Home's bounce (MFTR0: 120-290 ms). */
         private const val HOME_BOUNCE_MS = 500L
+
+        /** From Aerial coming to the front to the guard check; Android binds a new process's guard in that time. */
+        private const val GUARD_CHECK_DELAY_MS = 5_000L
 
         /**
          * How long before the screensaver its start is fetched: the moment's 6 MB took 1-2 s from
