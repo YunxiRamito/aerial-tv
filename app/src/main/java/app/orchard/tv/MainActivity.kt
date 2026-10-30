@@ -500,6 +500,7 @@ class MainActivity : ComponentActivity() {
     override fun dump(prefix: String, fd: java.io.FileDescriptor?, writer: java.io.PrintWriter, args: Array<out String>?) {
         super.dump(prefix, fd, writer, args)
         if (locked) return
+        writer.println(HomeGuardService.diagnosticState())
         // `... MainActivity report`: what tools/report.sh pastes into an issue.
         if (args?.contains("report") == true) writer.print(Diagnostics.report(this)) else DiagLog.dump(writer)
     }

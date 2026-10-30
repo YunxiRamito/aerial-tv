@@ -752,8 +752,13 @@ class HomeGuardService : AccessibilityService() {
         gamepadAttached = runCatching {
             InputDevice.getDeviceIds().any { id ->
                 InputDevice.getDevice(id)?.let {
-                    !it.isVirtual && !it.name.orEmpty().contains("virtual", ignoreCase = true) &&
-                        it.supportsSource(InputDevice.SOURCE_GAMEPAD)
+                    GamepadDevices.isPhysicalGamepad(
+                        name = it.name,
+                        isVirtual = it.isVirtual,
+                        supportsGamepad = it.supportsSource(InputDevice.SOURCE_GAMEPAD),
+                        vendorId = it.vendorId,
+                        productId = it.productId,
+                    )
                 } == true
             }
         }.getOrDefault(false)
@@ -1407,6 +1412,14 @@ class HomeGuardService : AccessibilityService() {
         private var instance: HomeGuardService? = null
 
         val isRunning: Boolean get() = instance != null
+
+        fun diagnosticState(): String {
+            val s = instance ?: return "Home Guard bound=false resumed=$aerialResumed"
+            val flag = AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
+            return "Home Guard bound=true resumed=$aerialResumed filter=${s.serviceInfo?.flags?.and(flag) != 0} " +
+                "screenOff=${s.screenOff} gamepad=${s.gamepadAttached} stockAllowed=${SystemClock.uptimeMillis() < s.allowStockUntil} " +
+                "front=${s.lastWindow} windowEvents=${s.windowsSeen} resolved=${s.resolvedHome()} homes=${s.stockHomes}"
+        }
 
         /** Whether usage stats may be read (GET_USAGE_STATS, granted over ADB); see foregroundCheck. */
         fun usageStatsAllowed(context: Context): Boolean = runCatching {
