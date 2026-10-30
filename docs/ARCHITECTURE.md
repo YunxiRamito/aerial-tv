@@ -216,7 +216,7 @@ NanoHTTPD 监听 8790 端口，路径前缀是 8 位随机令牌（每次打开�
 
 小米播放器兜底（框架没列 HDMI 的小米电视）的编号顺序：机型档案里 `labels` 写成「HDMI n」且有 `xiaomiSources` 的，先用它；然后才是 `hdmiN_order`；都没有就 22 + n。小米电视 4 固件 22.8 起 `hdmiN_order` 按 droidlogic 编号，和面板上的是反的（#923）。
 
-守护每秒查用量统计（`foregroundCheck`）的条件：Android 6 及以下，或原桌面里有不发窗口事件的桌面（`INVISIBLE_LAUNCHERS`：海信聚好看、腾讯极光 `com.ktcp.launcher`，#928）。唤醒和开机后的接管都会查「Aerial 被原桌面静默盖住」（`coveredAerial`：Aerial 没在前台，用量统计里最后到前台的是原桌面）。
+守护每秒查用量统计（`foregroundCheck`）的条件：Android 6 及以下，或原桌面里有不发窗口事件的桌面（`INVISIBLE_LAUNCHERS`：海信聚好看、腾讯极光 `com.ktcp.launcher`，#928）。唤醒和开机后的接管都会查「Aerial 被原桌面静默盖住」（`coveredAerial`：Aerial 没在前台，用量统计里最后到前台的是原桌面）。另外，原桌面里有 PatchWall 的 `BootActivity` 时（小米盒子 4S Max，Android 9），开机后 3 分钟内、亮屏后 15 秒内也每秒查一次，并把 `BootActivity` 当作原桌面；这两个时间窗以外不轮询（`recoveryWindow`）。
 
 控制中心的「是不是默认桌面」单独读、先显示，不和亮度一起等（#892：小米盒子上亮度探测 TvService 卡住，状态一直是初值）。`MitvPanel` 在机顶盒上不探测，同一时间只探一个。
 

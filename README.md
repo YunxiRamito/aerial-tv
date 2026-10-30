@@ -212,6 +212,7 @@ curl -fsSL https://aerial.qust.me/install.sh | TV=192.168.1.20 bash -s restore
 |---|---|---|---|
 | 小米 / Redmi | MiTV-MFTR0（Redmi X65 2026）、MFFU0、MTSU0（S65 Mini LED 2026 至尊版） | Android 14 | ✅ 日常使用（[MFTR0](docs/devices/xiaomi-mitv-mftr0.md)、[MFFU0](docs/devices/xiaomi-mitv-mffu0.md)、[MTSU0](docs/devices/xiaomi-mitv-mtsu0.md)） |
 | 小米 | MiTV-ASTP0、ASTP1、NSOP0、MFTP0 | Android 9 | ✅ MFTP0 被系统清理后约 30–60 秒才回来（[笔记](docs/devices/xiaomi-mitv-mftp0.md)） |
+| 小米 | 小米盒子 4S Max（MiTV-AZFP0） | Android 9 | ⚠️ 强停后守护有可能卡在「已启用未绑定」，要重启一次电视（[笔记](docs/devices/xiaomi-mibox-4s-max.md)） |
 | 小米 | 小米电视 4 / 4A / 4X / 3S、小米盒子 4 | Android 6 | ✅ 1.43 起；按主页键后几秒才回到 Aerial（[笔记](docs/devices/xiaomi-android6.md)） |
 | 小米 | 小米电视 2（MiTV2-49） | Android 4.3 | ❌ Aerial Lite 能装能跑，但主页键由系统直接打开小米桌面，当不了桌面（[#770](https://github.com/pengchujin/aerial-tv/issues/770)） |
 | 华为 | M330 盒子 | Android 4.4 | ❌ Aerial Lite 能装，但固件每次开机把默认桌面改回华为桌面（[#850](https://github.com/pengchujin/aerial-tv/issues/850)） |
