@@ -293,7 +293,7 @@ private fun MainPage(vm: HomeViewModel, vpn: VpnState, now: LocalDateTime, takeF
                 focusRequester = vpnFocus,
                 modifier = Modifier.onFocusChanged { if (it.isFocused) cameFrom = vpnFocus },
                 active = vpn.on,
-                busy = vpn.busy,
+                busy = vpn.busy || vpn.coreBusy,
                 onLongPress = { openVpnPage(vm, vpn) },
             ) { pressVpn(vm, vpn, context) }
             RoundButton(

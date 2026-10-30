@@ -325,6 +325,9 @@
   .proxy-node .proxy-ping[aria-busy="true"] { opacity: .35; }
   .proxy-node .pick:not(:disabled):active, .proxy-node .proxy-ping:active { background: var(--fill); transition-duration: 0s; }
   .proxy-test-all { margin: 0 0 12px; }
+  .proxy-core-bar { height: 4px; border-radius: 2px; background: var(--fill); overflow: hidden; margin-top: 8px; }
+  .proxy-core-bar > span { display: block; height: 100%; width: 0; background: var(--tint); transition: width .6s linear; }
+  @media (prefers-reduced-motion: reduce) { .proxy-core-bar > span { transition: none; } }
   .proxy-page .proxy-rule-lists .txt, .proxy-conn .txt { overflow-wrap: anywhere; }
   .proxy-page .proxy-rule-lists .sub.err { color: var(--danger); }
   #proxyGroupPick .val { max-width: 55%; overflow: hidden; text-overflow: ellipsis; }
@@ -402,6 +405,16 @@
     <button class="item tint center" type="button" id="proxyRefreshStatus" data-i18n="px_refresh"></button>
   </div>
   <p class="foot proxy-error" id="proxyError" role="alert" hidden></p>
+  <!-- The optional core: shown only while it is missing and this TV can run the pinned one. -->
+  <div id="proxyCoreBox" hidden>
+    <h2 data-i18n="px_core_title"></h2>
+    <div class="list">
+      <div class="item proxy-status" role="status" aria-live="polite"><span class="txt"><b id="proxyCoreText"></b><span class="sub" id="proxyCoreDetail"></span><span class="proxy-core-bar" id="proxyCoreBar" hidden><span id="proxyCoreFill"></span></span></span></div>
+      <button class="item tint center" type="button" id="proxyCoreButton"></button>
+    </div>
+    <p class="foot proxy-error" id="proxyCoreError" role="alert" hidden></p>
+    <p class="foot" data-i18n="px_core_hint"></p>
+  </div>
   <div class="row"><button class="btn" type="button" id="proxyToggle" aria-describedby="proxyStartHint" disabled data-i18n="px_start"></button></div>
   <p class="foot" id="proxyStartHint" data-i18n="px_start_requires_sub" hidden></p>
   <!-- Profiles: subscriptions and manual HTTP / SOCKS5 upstreams. Shown when status lists profiles. -->
@@ -532,7 +545,7 @@ let state = null, stateJson = '';
 
 // The language: ?lang=ru in the address, else the one picked under More (kept on the phone), else the
 // first of the phone's preferred languages that has a table, else English. Keys are in KEYS, one array of texts per language.
-const KEYS = ["screensaver", "screensaver_short", "ss_aerial", "ss_photos", "ss_clock", "focus", "focus_high", "focus_standard", "weather", "city_ph", "set", "upload_label", "feedback_h", "feedback_hint", "diag_show", "diag_copy", "diag_github", "hint_aerial", "hint_photos", "hint_clock", "g_live", "g_live_sub", "g_daily", "g_daily_sub", "g_photo", "g_builtin", "g_auto", "toast_wallpaper", "aria_delete", "confirm_delete", "wx_clear", "wx_partlycloudy", "wx_cloudy", "wx_fog", "wx_rain", "wx_snow", "wx_thunder", "wx_chosen", "wx_auto_btn", "toast_auto", "wx_guessed", "wx_none", "tag_source", "aria_rename", "toast_renamed", "toast_name_reset", "toast_rename_fail", "aria_reset_icon", "toast_icon_reset", "focus_hint_standard", "focus_hint_high", "daily_title", "daily_caption", "rotate_title", "rotate_caption", "empty_photos", "add_second", "toast_tv_updated", "sending_n", "toast_added", "toast_no_photos", "toast_send_fail", "toast_city_set", "toast_city_nf", "toast_set_fail", "toast_sending_icon", "toast_icon_set", "toast_icon_bad", "diag_collecting", "toast_diag_fail", "toast_copied", "toast_copy_manual", "language", "hint_follows", "ss_videos", "hint_videos", "videos_h", "videos_upload", "videos_hint", "videos_empty", "confirm_video_delete", "toast_videos_added", "toast_video_bad", "sending_video", "hint_system", "tab_home", "tab_more", "current_wp", "cancel", "save", "name_ph", "rename_hint", "change_icon", "this_tv", "folder_count", "folder_ph", "inputs_h", "inputs_hint", "rename_hint_app", "was_named", "arrange_hint", "arrange_unready", "hidden_h", "hidden_none", "hidden_locked", "show_app", "hide_app", "to_folder", "new_folder", "out_of_folder", "ungroup", "ungroup_confirm", "folder_hint", "toast_hidden", "toast_shown", "toast_in_folder", "toast_out_folder", "toast_ungrouped", "tab_looks", "looks_title", "show_on_home", "source_device", "source_plain", "source_device_hint", "tv_model", "sw_always", "sw_always_sub", "sw_weather", "sw_saver_time", "sw_saver_time_sub", "g_source_sub", "icon_h", "icon_library", "icon_own", "icon_custom", "toast_icon_picked", "drop_hint", "drop_sub", "drop_none", "toast_diag_paste", "tab_proxy", "px_intro", "px_status", "px_running", "px_stopped", "px_starting", "px_stopping", "px_unavailable", "px_loading", "px_refresh", "px_subscription", "px_sub_hint", "px_url", "px_url_ph", "px_import", "px_update", "px_clear", "px_confirm", "px_configured", "px_no_sub", "px_start", "px_stop", "px_mode", "px_rule", "px_global", "px_direct", "px_mode_hint", "px_network", "px_system", "px_system_hint", "px_applied", "px_pending", "px_lan", "px_lan_hint", "px_port", "px_port_hint", "px_address", "px_tun", "px_tun_hint", "px_tun_unavailable", "px_permission", "px_nodes", "px_nodes_hint", "px_no_groups", "px_search", "px_auto", "px_empty", "px_failed", "px_url_invalid", "px_port_invalid", "px_saved", "px_deleted", "px_selected", "px_status_failed", "px_start_requires_sub", "px_download_failed", "px_redirect_failed", "px_insecure_redirect", "px_too_large", "px_config_invalid", "px_config_unsupported", "px_validation_timeout", "px_core_rejected", "px_core_unavailable", "px_core_start_failed", "px_core_stopped", "px_core_request_failed", "px_system_unavailable", "px_port_unavailable", "px_invalid_setting", "px_not_running", "px_node_unavailable", "px_timeout", "px_dns_failed", "px_connection_failed", "px_download_timeout", "px_tls_failed", "px_http_unauthorized", "px_http_forbidden", "px_http_not_found", "px_http_rate_limited", "px_http_server_error", "px_html_response", "px_clash_format", "px_geo_failed", "px_request_rejected", "px_intro_profiles", "px_start_requires_profile", "px_profiles", "px_secret_hint", "px_no_profiles", "px_add_profile", "px_edit_profile", "px_kind", "px_kind_http", "px_kind_socks5", "px_in_use", "px_updated_at", "px_never_updated", "px_every_hours", "px_auto_off", "px_last_error", "px_name", "px_profile_default", "px_refresh_hours", "px_refresh_hours_hint", "px_host", "px_port_upstream", "px_username", "px_password", "px_tls", "px_tls_hint", "px_tls_keep", "px_tls_on", "px_tls_off", "px_optional", "px_keep_saved", "px_clear_login", "px_edit_hint", "px_activate_after", "px_activate_hint", "px_use_profile", "px_update_now", "px_delete_profile", "px_delete_confirm", "px_delete_active_confirm", "px_profile_saved", "px_profile_activated", "px_profile_updated", "px_profile_deleted", "px_profile_deleted_stopped", "px_saving", "px_saving_hint", "px_name_invalid", "px_hours_invalid", "px_upstream_invalid", "px_credentials_invalid", "px_profile_limit", "px_profile_missing", "px_profile_changed", "px_profile_not_configured", "px_profile_storage", "px_test", "px_test_all", "px_testing_n", "px_ms", "px_delay_failed", "px_delay_failed_long", "px_latency_hint", "px_view_only", "px_tun_on", "px_tun_dns", "px_tun_failed", "px_vpn_denied", "px_vpn_unavailable", "px_vpn_revoked", "px_rule_source", "px_rs_blacklist", "px_rs_blacklist_hint", "px_rs_whitelist", "px_rs_whitelist_hint", "px_rs_subscription", "px_rs_subscription_hint", "px_adblock", "px_adblock_hint", "px_group", "px_group_hint", "px_group_auto", "px_group_invalid", "px_rl_title", "px_rl_update", "px_rl_updating", "px_rl_started", "px_rl_urls", "px_rl_urls_hint", "px_rl_urls_saved", "px_rl_reset", "px_rl_url_invalid", "px_rl_hint", "px_rl_credit", "px_rl_count", "px_rl_missing", "px_rl_snapshot", "px_rl_download", "px_rl_failed", "px_rl_invalid", "px_rl_too_large", "px_conn_title", "px_conn_show", "px_conn_hint", "px_conn_memory", "px_conn_empty", "px_conn_not_running"];
+const KEYS = ["screensaver", "screensaver_short", "ss_aerial", "ss_photos", "ss_clock", "focus", "focus_high", "focus_standard", "weather", "city_ph", "set", "upload_label", "feedback_h", "feedback_hint", "diag_show", "diag_copy", "diag_github", "hint_aerial", "hint_photos", "hint_clock", "g_live", "g_live_sub", "g_daily", "g_daily_sub", "g_photo", "g_builtin", "g_auto", "toast_wallpaper", "aria_delete", "confirm_delete", "wx_clear", "wx_partlycloudy", "wx_cloudy", "wx_fog", "wx_rain", "wx_snow", "wx_thunder", "wx_chosen", "wx_auto_btn", "toast_auto", "wx_guessed", "wx_none", "tag_source", "aria_rename", "toast_renamed", "toast_name_reset", "toast_rename_fail", "aria_reset_icon", "toast_icon_reset", "focus_hint_standard", "focus_hint_high", "daily_title", "daily_caption", "rotate_title", "rotate_caption", "empty_photos", "add_second", "toast_tv_updated", "sending_n", "toast_added", "toast_no_photos", "toast_send_fail", "toast_city_set", "toast_city_nf", "toast_set_fail", "toast_sending_icon", "toast_icon_set", "toast_icon_bad", "diag_collecting", "toast_diag_fail", "toast_copied", "toast_copy_manual", "language", "hint_follows", "ss_videos", "hint_videos", "videos_h", "videos_upload", "videos_hint", "videos_empty", "confirm_video_delete", "toast_videos_added", "toast_video_bad", "sending_video", "hint_system", "tab_home", "tab_more", "current_wp", "cancel", "save", "name_ph", "rename_hint", "change_icon", "this_tv", "folder_count", "folder_ph", "inputs_h", "inputs_hint", "rename_hint_app", "was_named", "arrange_hint", "arrange_unready", "hidden_h", "hidden_none", "hidden_locked", "show_app", "hide_app", "to_folder", "new_folder", "out_of_folder", "ungroup", "ungroup_confirm", "folder_hint", "toast_hidden", "toast_shown", "toast_in_folder", "toast_out_folder", "toast_ungrouped", "tab_looks", "looks_title", "show_on_home", "source_device", "source_plain", "source_device_hint", "tv_model", "sw_always", "sw_always_sub", "sw_weather", "sw_saver_time", "sw_saver_time_sub", "g_source_sub", "icon_h", "icon_library", "icon_own", "icon_custom", "toast_icon_picked", "drop_hint", "drop_sub", "drop_none", "toast_diag_paste", "tab_proxy", "px_intro", "px_status", "px_running", "px_stopped", "px_starting", "px_stopping", "px_unavailable", "px_loading", "px_refresh", "px_subscription", "px_sub_hint", "px_url", "px_url_ph", "px_import", "px_update", "px_clear", "px_confirm", "px_configured", "px_no_sub", "px_start", "px_stop", "px_mode", "px_rule", "px_global", "px_direct", "px_mode_hint", "px_network", "px_system", "px_system_hint", "px_applied", "px_pending", "px_lan", "px_lan_hint", "px_port", "px_port_hint", "px_address", "px_tun", "px_tun_hint", "px_tun_unavailable", "px_permission", "px_nodes", "px_nodes_hint", "px_no_groups", "px_search", "px_auto", "px_empty", "px_failed", "px_url_invalid", "px_port_invalid", "px_saved", "px_deleted", "px_selected", "px_status_failed", "px_start_requires_sub", "px_download_failed", "px_redirect_failed", "px_insecure_redirect", "px_too_large", "px_config_invalid", "px_config_unsupported", "px_validation_timeout", "px_core_rejected", "px_core_unavailable", "px_core_start_failed", "px_core_stopped", "px_core_request_failed", "px_system_unavailable", "px_port_unavailable", "px_invalid_setting", "px_not_running", "px_node_unavailable", "px_timeout", "px_dns_failed", "px_connection_failed", "px_download_timeout", "px_tls_failed", "px_http_unauthorized", "px_http_forbidden", "px_http_not_found", "px_http_rate_limited", "px_http_server_error", "px_html_response", "px_clash_format", "px_geo_failed", "px_request_rejected", "px_intro_profiles", "px_start_requires_profile", "px_profiles", "px_secret_hint", "px_no_profiles", "px_add_profile", "px_edit_profile", "px_kind", "px_kind_http", "px_kind_socks5", "px_in_use", "px_updated_at", "px_never_updated", "px_every_hours", "px_auto_off", "px_last_error", "px_name", "px_profile_default", "px_refresh_hours", "px_refresh_hours_hint", "px_host", "px_port_upstream", "px_username", "px_password", "px_tls", "px_tls_hint", "px_tls_keep", "px_tls_on", "px_tls_off", "px_optional", "px_keep_saved", "px_clear_login", "px_edit_hint", "px_activate_after", "px_activate_hint", "px_use_profile", "px_update_now", "px_delete_profile", "px_delete_confirm", "px_delete_active_confirm", "px_profile_saved", "px_profile_activated", "px_profile_updated", "px_profile_deleted", "px_profile_deleted_stopped", "px_saving", "px_saving_hint", "px_name_invalid", "px_hours_invalid", "px_upstream_invalid", "px_credentials_invalid", "px_profile_limit", "px_profile_missing", "px_profile_changed", "px_profile_not_configured", "px_profile_storage", "px_test", "px_test_all", "px_testing_n", "px_ms", "px_delay_failed", "px_delay_failed_long", "px_latency_hint", "px_view_only", "px_tun_on", "px_tun_dns", "px_tun_failed", "px_vpn_denied", "px_vpn_unavailable", "px_vpn_revoked", "px_rule_source", "px_rs_blacklist", "px_rs_blacklist_hint", "px_rs_whitelist", "px_rs_whitelist_hint", "px_rs_subscription", "px_rs_subscription_hint", "px_adblock", "px_adblock_hint", "px_group", "px_group_hint", "px_group_auto", "px_group_invalid", "px_rl_title", "px_rl_update", "px_rl_updating", "px_rl_started", "px_rl_urls", "px_rl_urls_hint", "px_rl_urls_saved", "px_rl_reset", "px_rl_url_invalid", "px_rl_hint", "px_rl_credit", "px_rl_count", "px_rl_missing", "px_rl_snapshot", "px_rl_download", "px_rl_failed", "px_rl_invalid", "px_rl_too_large", "px_conn_title", "px_conn_show", "px_conn_hint", "px_conn_memory", "px_conn_empty", "px_conn_not_running", "px_core_title", "px_core_missing", "px_core_download", "px_core_retry", "px_core_cancel", "px_core_downloading", "px_core_verifying", "px_core_hint", "px_core_error_download", "px_core_error_integrity", "px_core_error_storage", "px_core_error_exec", "px_core_error_selftest"];
 const TEXTS = {
  "zh": [
   "屏幕保护程序",
@@ -867,7 +880,20 @@ const TEXTS = {
   "显示内核当前打开的最近 50 条连接：目标地址、命中的规则，以及实际走的节点。可用来确认国内网站走 DIRECT、境外网站走节点。",
   "内核内存：{n} MB",
   "当前没有打开的连接。",
-  "代理未运行。"
+  "代理未运行。",
+  "代理内核",
+  "这台电视上还没有代理内核。",
+  "下载内核（约 21 MB）",
+  "重新下载内核（约 21 MB）",
+  "取消下载",
+  "正在下载内核… {pct}% · {speed}",
+  "正在校验下载的文件…",
+  "内核是一个独立程序（mihomo，GPLv3），只在你点下载时获取，SHA-256 与 Aerial 内置的固定值一致才会使用。",
+  "下载没有完成。可以稍后重试，会接着已收到的部分继续。",
+  "下载的文件与固定的校验值不一致，已删除。",
+  "电视存储空间不足或无法写入，内核没有保存。",
+  "这台电视不允许应用运行自己下载的程序，内核已删除。",
+  "内核下载后无法运行，已删除。"
  ],
  "en": [
   "Screensaver",
@@ -1202,7 +1228,20 @@ const TEXTS = {
   "Shows the 50 newest connections the core has open: destination, the rule that matched and the node actually used. Use it to confirm that Chinese sites go DIRECT and foreign sites go through the node.",
   "Core memory: {n} MB",
   "No open connections.",
-  "The proxy is not running."
+  "The proxy is not running.",
+  "Proxy core",
+  "The proxy core is not installed on this TV.",
+  "Download the core (about 21 MB)",
+  "Download the core again (about 21 MB)",
+  "Cancel the download",
+  "Downloading the core… {pct}% · {speed}",
+  "Checking the downloaded file…",
+  "The core is a separate program (mihomo, GPLv3). It is downloaded only when you ask, and used only if its SHA-256 matches the value pinned in Aerial.",
+  "The download did not finish. Try again later; it continues from what was received.",
+  "The downloaded file did not match its pinned checksum and was deleted.",
+  "The TV has no room or cannot write the file; the core was not saved.",
+  "This TV does not let an app run a program it downloaded itself; the core was deleted.",
+  "The core did not run after the download and was deleted."
  ],
  "ru": [
   "Заставка",
@@ -1537,7 +1576,20 @@ const TEXTS = {
   "Показывает 50 последних соединений, открытых в ядре: адрес назначения, сработавшее правило и фактически использованный узел. Так можно проверить, что китайские сайты идут DIRECT, а зарубежные через узел.",
   "Память ядра: {n} МБ",
   "Открытых соединений нет.",
-  "Прокси не запущен."
+  "Прокси не запущен.",
+  "Ядро прокси",
+  "На этом телевизоре не установлено ядро прокси.",
+  "Скачать ядро (около 21 МБ)",
+  "Скачать ядро снова (около 21 МБ)",
+  "Отменить загрузку",
+  "Загрузка ядра… {pct}% · {speed}",
+  "Проверка скачанного файла…",
+  "Ядро — отдельная программа (mihomo, GPLv3). Оно скачивается только по вашему запросу и используется, только если его SHA-256 совпадает со значением, зашитым в Aerial.",
+  "Загрузка не завершена. Повторите позже: она продолжится с уже полученной части.",
+  "Скачанный файл не совпал с заданной контрольной суммой и удалён.",
+  "Не хватает места на телевизоре или запись невозможна, ядро не сохранено.",
+  "Этот телевизор не разрешает приложению запускать скачанные им программы, ядро удалено.",
+  "Ядро не запустилось после загрузки и удалено."
  ],
  "uk": [
   "Заставка",
@@ -1872,7 +1924,20 @@ const TEXTS = {
   "Показує 50 останніх з'єднань, відкритих у ядрі: адресу призначення, правило, що спрацювало, і вузол, який справді використано. Так можна перевірити, що китайські сайти йдуть DIRECT, а закордонні через вузол.",
   "Пам'ять ядра: {n} МБ",
   "Відкритих з'єднань немає.",
-  "Проксі не запущено."
+  "Проксі не запущено.",
+  "Ядро проксі",
+  "На цьому телевізорі не встановлено ядро проксі.",
+  "Завантажити ядро (близько 21 МБ)",
+  "Завантажити ядро ще раз (близько 21 МБ)",
+  "Скасувати завантаження",
+  "Завантаження ядра… {pct}% · {speed}",
+  "Перевірка завантаженого файлу…",
+  "Ядро — окрема програма (mihomo, GPLv3). Воно завантажується лише на ваш запит і використовується, тільки якщо його SHA-256 збігається зі значенням, закладеним в Aerial.",
+  "Завантаження не завершено. Повторіть пізніше: воно продовжиться з уже отриманої частини.",
+  "Завантажений файл не збігся із заданою контрольною сумою й видалений.",
+  "Бракує місця на телевізорі або запис неможливий, ядро не збережено.",
+  "Цей телевізор не дозволяє застосунку запускати програми, які він сам завантажив, ядро видалено.",
+  "Ядро не запустилося після завантаження й видалене."
  ],
  "kk": [
   "Экран қорғаушы",
@@ -2207,7 +2272,20 @@ const TEXTS = {
   "Өзекте ашық тұрған 50 соңғы қосылымды көрсетеді: баратын мекенжай, сәйкес келген ереже және нақты пайдаланылған түйін. Қытай сайттарының DIRECT арқылы, шетелдік сайттардың түйін арқылы өтетінін тексеруге болады.",
   "Өзек жады: {n} МБ",
   "Ашық қосылымдар жоқ.",
-  "Прокси жұмыс істемейді."
+  "Прокси жұмыс істемейді.",
+  "Прокси өзегі",
+  "Бұл теледидарда прокси өзегі орнатылмаған.",
+  "Өзекті жүктеу (шамамен 21 МБ)",
+  "Өзекті қайта жүктеу (шамамен 21 МБ)",
+  "Жүктеуді тоқтату",
+  "Өзек жүктелуде… {pct}% · {speed}",
+  "Жүктелген файл тексерілуде…",
+  "Өзек — жеке бағдарлама (mihomo, GPLv3). Тек сіз сұрағанда жүктеледі және SHA-256 мәні Aerial ішіндегі бекітілген мәнге сәйкес келгенде ғана қолданылады.",
+  "Жүктеу аяқталмады. Кейінірек қайталаңыз, жүктеу алынған бөліктен жалғасады.",
+  "Жүктелген файл бекітілген тексеру мәніне сәйкес келмейді, ол жойылды.",
+  "Теледидар жадында орын жоқ немесе жазу мүмкін емес, өзек сақталмады.",
+  "Бұл теледидар қолданбаға өзі жүктеген бағдарламаны іске қосуға рұқсат бермейді, өзек жойылды.",
+  "Өзек жүктелгеннен кейін іске қосылмады, ол жойылды."
  ]
 };
 const LANGS = Object.keys(TEXTS);
@@ -3100,7 +3178,11 @@ const PROXY_ERROR_KEYS = Object.freeze({
   rule_list_http_not_found: 'px_rl_failed', rule_list_http_rate_limited: 'px_rl_failed', rule_list_http_server_error: 'px_rl_failed',
   rule_list_insecure_redirect: 'px_rl_failed', rule_list_too_many_redirects: 'px_rl_failed', rule_list_html_response: 'px_rl_failed',
   rule_list_storage_failed: 'px_rl_failed', rule_list_invalid: 'px_rl_invalid', rule_list_empty: 'px_rl_invalid',
-  rule_list_too_large: 'px_rl_too_large'
+  rule_list_too_large: 'px_rl_too_large',
+  // The optional core (proxy/CoreInstaller.kt).
+  core_download_failed: 'px_core_error_download', core_download_unsupported: 'px_core_error_download',
+  core_integrity_failed: 'px_core_error_integrity', core_storage_failed: 'px_core_error_storage',
+  core_exec_not_permitted: 'px_core_error_exec', core_selftest_failed: 'px_core_error_selftest'
 });
 function proxySafeErrorCode(code) {
   return typeof code === 'string' && Object.prototype.hasOwnProperty.call(PROXY_ERROR_KEYS, code) ? code : 'proxy_request_failed';
@@ -3152,6 +3234,9 @@ function normalizeProxyStatus(value) {
     tunSupported: v.tunSupported === true, tunActive: v.tunActive === true,
     vpnPermissionRequired: v.vpnPermissionRequired === true,
     tunError: v.tunError ? proxySafeErrorCode(v.tunError) : null,
+    // The optional core: installed (bundled or downloaded), whether this TV is offered the download, its progress.
+    coreInstalled: v.coreInstalled !== false && v.available !== false, coreDownloadSupported: v.coreDownloadSupported === true,
+    coreDownload: normalizeProxyCore(v.coreDownload),
     mode: ['rule', 'global', 'direct'].includes(String(v.mode).toLowerCase()) ? String(v.mode).toLowerCase() : 'rule',
     mixedPort: Number(v.mixedPort) || 7890,
     error: v.error ? proxySafeErrorCode(v.error) : null,
@@ -3179,6 +3264,14 @@ function normalizeProxyStatus(value) {
   };
 }
 
+
+function normalizeProxyCore(c) {
+  const state = c && ['idle', 'downloading', 'verifying', 'failed'].includes(c.state) ? c.state : 'idle';
+  const n = x => Number.isFinite(Number(x)) && Number(x) > 0 ? Number(x) : 0;
+  return {state, received: n(c && c.received), total: n(c && c.total), speed: n(c && c.speed),
+    error: c && typeof c.error === 'string' && c.error ? proxySafeErrorCode(c.error) : null};
+}
+function proxyCoreSpeed(b) { return b < 1e6 ? Math.round(b / 1000) + ' KB/s' : (b / 1e6).toFixed(1) + ' MB/s'; }
 
 function normalizeProxyProfiles(list) {
   return list.filter(p => p && typeof p.id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(p.id) && ['subscription', 'http', 'socks5'].includes(p.kind))
@@ -3209,6 +3302,22 @@ function normalizeProxyGroups(value) {
   }));
 }
 
+function renderProxyCore(s, locked) {
+  const box = $('#proxyCoreBox'), show = !!s && !s.coreInstalled && s.coreDownloadSupported;
+  box.hidden = !show;
+  if (!show) return;
+  const c = s.coreDownload, pct = c.total > 0 ? Math.min(100, Math.floor(c.received * 100 / c.total)) : 0;
+  const busy = c.state === 'downloading' || c.state === 'verifying';
+  $('#proxyCoreText').textContent = t(c.state === 'verifying' ? 'px_core_verifying' : c.state === 'downloading' ? 'px_core_downloading' : 'px_core_missing', {pct, speed: proxyCoreSpeed(c.speed)});
+  $('#proxyCoreBar').hidden = !busy;
+  $('#proxyCoreFill').style.width = (c.state === 'verifying' ? 100 : pct) + '%';
+  const button = $('#proxyCoreButton');
+  button.textContent = t(c.state === 'downloading' ? 'px_core_cancel' : c.state === 'failed' ? 'px_core_retry' : 'px_core_download');
+  button.disabled = c.state === 'verifying' || (proxyBusy && !busy) || !!proxyLoadError;
+  const error = $('#proxyCoreError'), key = c.state === 'failed' && c.error ? PROXY_ERROR_KEYS[c.error] : '';
+  error.hidden = !key; error.textContent = key ? t(key) : '';
+}
+
 function renderProxy() {
   const s = proxyState, offline = !s || proxyLoadError, locked = proxyBusy || offline;
   let label = 'px_loading';
@@ -3220,6 +3329,7 @@ function renderProxy() {
   $('#proxyDot').dataset.running = String(!!s && s.running);
   $('#proxyCore').textContent = s && s.coreVersion ? String(s.coreVersion).slice(0, 100) : '';
   $('#proxySystemState').textContent = s && s.systemProxy ? t(s.systemProxyApplied ? 'px_applied' : 'px_pending') : '';
+  renderProxyCore(s, locked);
   const errorCode = proxyLoadError ? 'proxy_status_unavailable' : proxyActionError || (s && (s.error || s.importError));
   $('#proxyError').hidden = !errorCode;
   $('#proxyError').textContent = errorCode ? proxyErrorText(errorCode) : '';
@@ -3357,7 +3467,8 @@ function renderProxyProfiles(profiles, locked) {
 
 function scheduleProxyRefresh() {
   clearTimeout(proxyTimer);
-  if (tab === 'proxy' && !document.hidden && !proxyBusy) proxyTimer = setTimeout(() => refreshProxy(true), 5000);
+  const coreBusy = !!proxyState && ['downloading', 'verifying'].includes(proxyState.coreDownload.state);
+  if (tab === 'proxy' && !document.hidden && !proxyBusy) proxyTimer = setTimeout(() => refreshProxy(true), coreBusy ? 1500 : 5000);
 }
 
 function refreshProxy(withGroups) {
@@ -3412,6 +3523,14 @@ async function waitForProxy(running) {
 }
 
 $('#proxyRefreshStatus').onclick = () => { proxyActionError = ''; refreshProxy(true); };
+$('#proxyCoreButton').onclick = () => {
+  if (proxyLoadError || !proxyState || !proxyState.coreDownloadSupported) return;
+  const cancel = proxyState.coreDownload.state === 'downloading';
+  // Not through proxyAction: that locks the page, and the page must stay usable (and cancel must
+  // work) while the file arrives. The download itself runs on the TV; this only starts or stops it.
+  proxyRequest(cancel ? 'core/cancel' : 'core/download', {}).then(() => refreshProxy(false))
+    .catch(error => toast(proxyErrorText(error && error.proxyCode)));
+};
 $('#proxyToggle').onclick = () => {
   if (proxyBusy || proxyLoadError || !proxyState || !proxyState.available) return;
   if (!proxyState.running && !proxyState.configured) { toast(t(proxyProfileMode ? 'px_start_requires_profile' : 'px_start_requires_sub')); return; }

@@ -77,6 +77,37 @@ class VpnStateTest {
         assertEquals("proxy_not_initialized", errorCode(IllegalStateException("Boom"), "proxy_not_initialized"))
     }
 
+    @Test fun coreDownloadStatusIsParsed() {
+        val json = JSONObject().put("available", false).put("coreInstalled", false).put("coreDownloadSupported", true)
+            .put("coreDownload", JSONObject().put("state", "downloading").put("received", 5_000_000L)
+                .put("total", 20_000_000L).put("speed", 850_000L).put("error", JSONObject.NULL))
+        val status = parseStatus(json)
+        assertTrue(status.needsCore)
+        assertTrue(status.coreBusy)
+        assertEquals(25, status.corePercent)
+        assertEquals(850_000L, status.coreSpeed)
+        assertNull(status.coreError)
+        val failed = parseStatus(JSONObject().put("available", false).put("coreDownloadSupported", true)
+            .put("coreDownload", JSONObject().put("state", "failed").put("error", "core_integrity_failed")))
+        assertFalse(failed.coreBusy)
+        assertEquals("core_integrity_failed", failed.coreError)
+    }
+
+    @Test fun anOlderStatusWithoutCoreFieldsMeansTheCoreIsThereIfAvailable() {
+        assertTrue(parseStatus(JSONObject().put("available", true)).coreInstalled)
+        assertFalse(parseStatus(JSONObject().put("available", false)).coreInstalled)
+        // Not offered where the TV cannot run it.
+        assertFalse(parseStatus(JSONObject().put("available", false)).needsCore)
+        assertEquals(0, parseStatus(JSONObject()).corePercent)
+    }
+
+    @Test fun speedIsShownInKilobytesOrMegabytesPerSecond() {
+        assertEquals("0 KB/s", formatSpeed(0))
+        assertEquals("85 KB/s", formatSpeed(85_000))
+        assertEquals("1.0 MB/s", formatSpeed(1_000_000))
+        assertEquals("1.2 MB/s", formatSpeed(1_250_000))
+    }
+
     @Test fun proxyProbeIsTunneledButNotAnAndroidVpn() {
         val plain = NetworkStatus(NetKind.Wifi, "Home")
         assertFalse(plain.tunneled)

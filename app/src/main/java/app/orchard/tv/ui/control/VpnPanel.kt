@@ -93,7 +93,7 @@ internal fun VpnPolling(vpn: VpnState, visible: Boolean, page: CcPage) {
         if (page != CcPage.Main && page != CcPage.Vpn) return@LaunchedEffect
         while (isActive) {
             vpn.refresh(withGroups = page == CcPage.Vpn)
-            delay(if (vpn.busy) 1000 else 2500)
+            delay(if (vpn.busy || vpn.coreBusy) 1000 else 2500)
         }
     }
 }
@@ -102,6 +102,12 @@ internal fun VpnPolling(vpn: VpnState, visible: Boolean, page: CcPage) {
 private fun errorRes(code: String): Int = when (code) {
     "subscription_required", "profile_not_configured", NEEDS_SETUP -> R.string.vpn_error_no_profile
     "core_unavailable_for_device", "tun_not_supported" -> R.string.vpn_error_core
+    "core_download_failed", "core_download_unsupported" -> R.string.vpn_core_error_download
+    "core_integrity_failed" -> R.string.vpn_core_error_integrity
+    "core_storage_failed" -> R.string.vpn_core_error_storage
+    "core_exec_not_permitted" -> R.string.vpn_core_error_exec
+    "core_selftest_failed" -> R.string.vpn_core_error_selftest
+    NEEDS_CORE -> R.string.vpn_core_missing
     "core_start_failed" -> R.string.vpn_error_start
     "core_stopped_unexpectedly" -> R.string.vpn_error_stopped
     "proxy_service_start_failed" -> R.string.vpn_error_service
@@ -137,16 +143,17 @@ private fun HomeViewModel.unlockedInPanel(vpn: VpnState, action: () -> Unit) {
 }
 
 /**
- * The VPN button's press: on or off. With no subscription to start it opens the VPN page, which
- * says how to add one on the phone page; failures show as a notice unless the VPN page shows them.
+ * The VPN button's press: on or off. With no subscription to start, or no core on the TV, it opens
+ * the VPN page, which says how to add a subscription on the phone page and offers the core download;
+ * failures show as a notice unless the VPN page shows them.
  */
 internal fun pressVpn(vm: HomeViewModel, vpn: VpnState, context: Context) {
     vm.unlockedInPanel(vpn) {
         vpn.press { result ->
             val panel = vm.overlay as? Overlay.ControlCenter
-            if (result == NEEDS_SETUP) {
+            if (result == NEEDS_SETUP || result == NEEDS_CORE) {
                 if (panel != null) vm.overlay = Overlay.ControlCenter(CcPage.Vpn)
-                else vm.notify(context.getString(R.string.vpn_error_no_profile))
+                else vm.notify(context.getString(if (result == NEEDS_CORE) R.string.vpn_core_missing else R.string.vpn_error_no_profile))
             } else if (result != null && panel?.page != CcPage.Vpn) {
                 vm.notify(vpnErrorText(context, result))
                 // Told once, as a notice; the VPN page opened later need not show it again.
@@ -234,15 +241,20 @@ private fun VpnOverview(vm: HomeViewModel, vpn: VpnState, takeFocus: Boolean) {
     }
     // Focus starts on what the page is for: the switch, or the way to add a subscription.
     val setup = s != null && !s.configured && !on
+    // No core on the TV and it can be downloaded: that row comes first, the on/off row would only fail.
+    val needCore = s != null && s.needsCore && !on
     Column(Modifier.heightIn(max = 470.dp).verticalScroll(rememberScrollState())) {
         MenuRow(Glyph.ChevronLeft, stringResource(R.string.vpn_label), focusRequester = if (s == null) first else null, onClick = { leaveVpnPage(vm, vpn) })
         StatusBlock(vpn, connected)
         val err = vpn.actionError ?: s?.error
-        if (err != null && !(setup && errorRes(err) == R.string.vpn_error_no_profile)) Caption(vpnErrorText(err), Palette.Orange)
+        if (err != null && !(setup && errorRes(err) == R.string.vpn_error_no_profile) && !(needCore && err == "core_unavailable_for_device")) {
+            Caption(vpnErrorText(err), Palette.Orange)
+        }
+        if (s != null && needCore) CoreBlock(vpn, s, first)
         if (s != null && setup) {
             Caption(stringResource(if (s.hasProfiles) R.string.vpn_hint_choose else R.string.vpn_hint_add), Palette.Label)
-            MenuRow(Glyph.Photo, stringResource(R.string.vpn_open_personalize), focusRequester = first, onClick = { vm.overlay = Overlay.Wallpaper }, trailing = "›")
-        } else if (s != null) {
+            MenuRow(Glyph.Photo, stringResource(R.string.vpn_open_personalize), focusRequester = if (needCore) null else first, onClick = { vm.overlay = Overlay.Wallpaper }, trailing = "›")
+        } else if (s != null && !needCore) {
             MenuRow(
                 Glyph.Power, stringResource(if (on) R.string.vpn_turn_off else R.string.vpn_turn_on),
                 focusRequester = first,
@@ -292,6 +304,32 @@ private fun VpnOverview(vm: HomeViewModel, vpn: VpnState, takeFocus: Boolean) {
     }
 }
 
+/**
+ * "Download the core": one row that starts the download, shows its progress and speed while it runs
+ * and cancels it when pressed again, with the last failure and what the core is underneath. Shown
+ * only while the core is missing and this TV can run the pinned one (VpnStatus.needsCore).
+ */
+@Composable
+private fun CoreBlock(vpn: VpnState, s: VpnStatus, focus: FocusRequester) {
+    val label = when {
+        s.coreState == "verifying" -> stringResource(R.string.vpn_core_verifying)
+        s.coreState == "downloading" -> stringResource(R.string.vpn_core_downloading, s.corePercent, formatSpeed(s.coreSpeed))
+        s.coreState == "failed" -> stringResource(R.string.vpn_core_retry)
+        else -> stringResource(R.string.vpn_core_download)
+    }
+    MenuRow(
+        Glyph.Download, label, focusRequester = focus, onClick = { vpn.toggleCore() },
+        trailing = if (s.coreState == "downloading") stringResource(R.string.vpn_core_cancel) else null,
+    )
+    if (s.coreBusy) {
+        Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Palette.Fill)) {
+            Box(Modifier.fillMaxWidth(s.corePercent / 100f).height(4.dp).background(Palette.Label))
+        }
+    }
+    s.coreError?.takeIf { s.coreState == "failed" }?.let { Caption(vpnErrorText(it), Palette.Orange) }
+    Caption(stringResource(R.string.vpn_core_hint))
+}
+
 /** Where the proxy stands: a dot and a line, then the subscription in use and what TUN does. */
 @Composable
 private fun StatusBlock(vpn: VpnState, connected: Boolean) {
@@ -300,7 +338,7 @@ private fun StatusBlock(vpn: VpnState, connected: Boolean) {
     val (dot, title) = when {
         unavailable != null -> Palette.Orange to vpnErrorText(unavailable)
         s == null -> Palette.SecondaryLabel to stringResource(R.string.vpn_loading)
-        !s.available && !s.running -> Palette.Orange to stringResource(R.string.vpn_error_core)
+        !s.available && !s.running -> Palette.Orange to stringResource(if (s.needsCore) R.string.vpn_core_missing else R.string.vpn_error_core)
         vpn.pending == VpnState.Pending.Stop || s.stopping -> Palette.SecondaryLabel to stringResource(R.string.vpn_stopping)
         vpn.pending == VpnState.Pending.Start || s.starting -> Palette.SecondaryLabel to stringResource(R.string.vpn_starting)
         // Running alone is not connected: only the last HTTPS 204 probe through the proxy says so.

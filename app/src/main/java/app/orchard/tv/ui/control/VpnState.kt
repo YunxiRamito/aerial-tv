@@ -32,7 +32,23 @@ internal data class VpnStatus(
     val vpnPermissionRequired: Boolean,
     val tunError: String?,
     val error: String?,
-)
+    /** The core is there (bundled, or downloaded and verified). Older status JSON: same as [available]. */
+    val coreInstalled: Boolean = available,
+    /** This TV can run the pinned core, so the download is offered. */
+    val coreDownloadSupported: Boolean = false,
+    /** idle, downloading, verifying or failed (proxy/CoreInstaller). */
+    val coreState: String = "idle",
+    val coreReceived: Long = 0,
+    val coreTotal: Long = 0,
+    val coreSpeed: Long = 0,
+    val coreError: String? = null,
+) {
+    val coreBusy get() = coreState == "downloading" || coreState == "verifying"
+    /** Nothing to run yet, and the download is the way forward. */
+    val needsCore get() = !coreInstalled && coreDownloadSupported
+    /** 0..100 while the size is known. */
+    val corePercent get() = if (coreTotal > 0) (coreReceived * 100 / coreTotal).toInt().coerceIn(0, 100) else 0
+}
 
 /** A proxy group of the running core: [now] is its current member, [all] its members in order. */
 internal data class VpnGroup(val name: String, val type: String, val now: String, val all: List<String>) {
@@ -73,6 +89,13 @@ internal fun parseStatus(json: JSONObject): VpnStatus {
         vpnPermissionRequired = json.optBoolean("vpnPermissionRequired"),
         tunError = json.text("tunError"),
         error = json.text("error"),
+        coreInstalled = json.optBoolean("coreInstalled", json.optBoolean("available", true)),
+        coreDownloadSupported = json.optBoolean("coreDownloadSupported"),
+        coreState = json.optJSONObject("coreDownload")?.optString("state", "idle")?.ifEmpty { "idle" } ?: "idle",
+        coreReceived = json.optJSONObject("coreDownload")?.optLong("received") ?: 0,
+        coreTotal = json.optJSONObject("coreDownload")?.optLong("total") ?: 0,
+        coreSpeed = json.optJSONObject("coreDownload")?.optLong("speed") ?: 0,
+        coreError = json.optJSONObject("coreDownload")?.text("error"),
     )
 }
 
@@ -121,6 +144,15 @@ internal fun VpnGroups.testable(node: String): Boolean =
 /** Result of a press on the VPN button. */
 internal const val NEEDS_SETUP = "needs_setup"
 
+/** Result of a press on the VPN button when the core is not on the TV but can be downloaded. */
+internal const val NEEDS_CORE = "needs_core"
+
+/** Bytes per second as "850 KB/s" or "1.2 MB/s"; the units are not translated. */
+internal fun formatSpeed(bytesPerSecond: Long): String = when {
+    bytesPerSecond < 1000 * 1000 -> "${(bytesPerSecond + 500) / 1000} KB/s"
+    else -> "%d.%d MB/s".format(bytesPerSecond / 1_000_000, bytesPerSecond % 1_000_000 / 100_000)
+}
+
 /** Error codes from ProxyManager are fixed strings; anything else is shown as a generic failure. */
 internal fun errorCode(e: Throwable, fallback: String = "proxy_request_failed"): String =
     e.message?.takeIf { it.matches(Regex("^[a-z][a-z0-9_]{1,80}$")) } ?: fallback
@@ -168,6 +200,26 @@ internal class VpnState(private val context: Context, private val scope: Corouti
     }
     val busy: Boolean get() = pending != null || status?.let { it.starting || it.stopping } == true
 
+    /** The core download is running (downloading or checking the file). */
+    val coreBusy: Boolean get() = status?.coreBusy == true
+
+    /** The VPN page's "download the core" row: starts, or cancels a running download. */
+    fun toggleCore() {
+        val s = status ?: return
+        val cancel = s.coreBusy
+        serial++
+        actionError = null
+        scope.launch {
+            try {
+                status = withContext(Dispatchers.IO) { parseStatus(if (cancel) ProxyManager.cancelCoreDownload() else ProxyManager.downloadCore()) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                actionError = errorCode(e)
+            }
+        }
+    }
+
     /** One poll: the status and, with [withGroups], the running core's groups. */
     suspend fun refresh(withGroups: Boolean) {
         val before = serial
@@ -205,7 +257,7 @@ internal class VpnState(private val context: Context, private val scope: Corouti
         val s = status ?: return unavailable ?: "proxy_not_initialized"
         if (s.stopping) return null
         val stop = s.running || s.starting
-        if (!stop && !s.available) return "core_unavailable_for_device".also { actionError = it }
+        if (!stop && !s.available) return if (s.needsCore) NEEDS_CORE else "core_unavailable_for_device".also { actionError = it }
         if (!stop && !s.configured) return NEEDS_SETUP
         serial++
         actionError = null
