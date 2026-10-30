@@ -738,7 +738,12 @@ class MainActivity : ComponentActivity() {
         DiagLog.i("onStart")
         // The phone and computer page, at any time the TV is on (only once unlocked: its token is
         // in credential-protected storage).
-        lifecycleScope.launch(Dispatchers.IO) { PhoneServer.listen(this@MainActivity) }
+        lifecycleScope.launch(Dispatchers.IO) {
+            PhoneServer.listen(this@MainActivity)
+            // Starts the proxy once per app process if the user has a profile (a manual stop lasts
+            // until the next app start).
+            app.orchard.tv.proxy.ProxyManager.startWithApplication()
+        }
         GuardSetup.ensureEnabled(this)
         idleHandler.postDelayed({ GuardSetup.rebindIfStalled(this) }, 5_000)
         vm.reloadIfPackagesChanged()
