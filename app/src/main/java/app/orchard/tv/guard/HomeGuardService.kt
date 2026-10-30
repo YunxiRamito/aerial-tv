@@ -999,6 +999,15 @@ class HomeGuardService : AccessibilityService() {
      * the remote cannot drive: start the vendor activity when the set has one, else the system's.
      */
     private fun openRecents() {
+        // Xiaomi's task centre is a system overlay, not an exported RecentsActivity.
+        // Its normal-permission service initializes the overlay before toggling it.
+        val xiaomi = ComponentName("com.xiaomi.mitv.systemui", "com.xiaomi.mitv.systemui.MiTVSystemUIService")
+        val service = runCatching { packageManager.getServiceInfo(xiaomi, 0) }.getOrNull()
+        if (service?.enabled == true && service.applicationInfo.enabled && service.exported &&
+            (service.permission.isNullOrEmpty() ||
+                ContextCompat.checkSelfPermission(this, service.permission) == PackageManager.PERMISSION_GRANTED)) {
+            if (runCatching { startService(Intent().setComponent(xiaomi).putExtra("recent_control", 2)) }.getOrNull() != null) return
+        }
         for (action in TASK_CENTRE_ACTIONS) {
             val intent = Intent(action)
                 .addCategory(Intent.CATEGORY_DEFAULT)
