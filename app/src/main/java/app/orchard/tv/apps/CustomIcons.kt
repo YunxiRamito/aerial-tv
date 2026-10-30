@@ -7,6 +7,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import app.orchard.tv.wallpaper.Images
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 import java.io.InputStream
 
@@ -23,6 +25,10 @@ object CustomIcons {
 
     /** Bumped on every change, so Home reloads its tiles. */
     var version by mutableIntStateOf(0); private set
+
+    // External uploads must notify Home even while its Compose window is stopped.
+    private val revisions = MutableStateFlow(0)
+    val changes = revisions.asStateFlow()
 
     private lateinit var dir: File
 
@@ -66,6 +72,7 @@ object CustomIcons {
     /** Called on the main thread after a save or clear. */
     fun changed() {
         version++
+        revisions.value = version
     }
 
     /** A package name, kept as a plain file name. */

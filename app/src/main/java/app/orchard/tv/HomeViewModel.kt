@@ -167,7 +167,12 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             for (level in brightnessSteps) SystemProbe.setXgimiBrightnessLevel(level)
         }
         // A tile picture set or removed from the phone page.
-        viewModelScope.launch { snapshotFlow { CustomIcons.version }.drop(1).collect { reload() } }
+        viewModelScope.launch {
+            CustomIcons.changes.drop(1).collect {
+                DiagLog.i("custom icons changed; reloading Home")
+                reload()
+            }
+        }
         // Library pictures that arrived, or the library turned on or off.
         viewModelScope.launch { snapshotFlow { IconLibrary.version }.drop(1).collect { reload() } }
         offerSetupOnce()
