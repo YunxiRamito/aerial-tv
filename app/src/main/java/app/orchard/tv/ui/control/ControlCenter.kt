@@ -259,7 +259,7 @@ private fun MainPage(vm: HomeViewModel, vpn: VpnState, now: LocalDateTime, takeF
                     style = Type.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.widthIn(max = 110.dp),
                 )
-                if (net.vpn) VpnBadge(Palette.SecondaryLabel, fontSize = 9.sp)
+                if (net.tunneled) VpnBadge(Palette.SecondaryLabel, fontSize = 9.sp)
             }
         }
 
